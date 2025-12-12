@@ -55,14 +55,14 @@ public class ClientService
                 {
                     Id = ct.ID,
                     Description = ct.Description,
-                    TransType = ct.TransType,
+                    TransType = ct.TransType ?? string.Empty,
                     Amount = ct.Amount,
                     DateCreated = ct.DateCreated,
                     CdsNumber = ct.CDS_Number,
                     Reference = ct.Reference,
                     Ref2 = ct.Ref2,
                     PostedBy = ct.PostedBy,
-                    Currency = ct.Currency,
+                    Currency = ct.Currency ?? string.Empty,
                     CaptureDate = ct.CaptureDate
                 })
                 .ToListAsync();

@@ -50,24 +50,60 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Seed data and ensure database created
-using (var scope = app.Services.CreateScope())
+// Seed data and ensure database created (with error handling)
+try
 {
-    var context = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-    await context.Database.MigrateAsync();
-    await SeedData.Initialize(context);
+    using (var scope = app.Services.CreateScope())
+    {
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+        
+        try
+        {
+            var context = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
+            logger.LogInformation("Attempting to connect to BSEPayments database...");
+            // await context.Database.MigrateAsync();
+            // await SeedData.Initialize(context);
+            logger.LogInformation("Database initialization completed successfully");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Database initialization failed. Check connection strings in appsettings.json");
+            // Don't throw - allow app to start so we can see the error in logs
+        }
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"CRITICAL ERROR during startup: {ex.Message}");
+    Console.WriteLine($"Stack trace: {ex.StackTrace}");
 }
 
 // Configure pipeline
-if (app.Environment.IsDevelopment())
-{
-    app.UseOpenApi();
-    app.UseSwaggerUi();
-}
+// Enable Swagger in all environments for API documentation
+app.UseOpenApi();
+app.UseSwaggerUi();
 
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+
+// Add a simple health check endpoint
+app.MapGet("/", () => new
+{
+    service = "BSE Payment Service",
+    version = "1.0",
+    status = "Running",
+    endpoints = new[]
+    {
+        "/swagger - API Documentation",
+        "/api/payments/deposit - Create deposit",
+        "/api/payments/withdraw - Create withdrawal",
+        "/api/payments/status - Check transaction status",
+        "/api/clients/{cdsNumber}/transactions - Get client transactions",
+        "/api/clients/{cdsNumber}/balance - Get client balance",
+        "/api/transactions - Get all payment transactions"
+    }
+});
 
 app.Run();

@@ -43,13 +43,20 @@ public class CashTransService
                 return false;
             }
 
+            // For withdrawals, amount should be negative to deduct from balance
+            var amount = transaction.Type == TransactionType.Withdraw 
+                ? -Math.Abs(transaction.Amount) 
+                : transaction.Amount;
+
             var cashTrans = new CashTrans
             {
                 Description = transaction.Type == TransactionType.Deposit 
                     ? $"Mobile Money Deposit - {transaction.Provider}" 
                     : $"Mobile Money Withdrawal - {transaction.Provider}",
-                TransType = "Account Deposit",
-                Amount = transaction.Amount,
+                TransType = transaction.Type == TransactionType.Deposit 
+                    ? "Account Deposit" 
+                    : "Account Withdrawal",
+                Amount = amount,
                 DateCreated = DateTime.Now,
                 TransStatus = "1",
                 CDS_Number = transaction.CdsNumber,
