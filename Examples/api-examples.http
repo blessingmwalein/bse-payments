@@ -1,0 +1,54 @@
+### BSE Payment Service API Examples
+### Use with REST Client extension in VS Code
+
+@baseUrl = https://localhost:5001/api/payments
+
+### 1. Deposit Transaction (Subscriber pays Merchant)
+# Transaction reference is auto-generated
+# Merchant details come from configuration
+# Provider: BTC, ORANGE, or MASCOM
+POST {{baseUrl}}/deposit
+Content-Type: application/json
+
+{
+  "provider": "BTC",
+  "cdsNumber": "CV00002GK",
+  "amount": 100.00,
+  "subscriberMsisdn": "73001762"
+}
+
+### 2. Withdraw Transaction (Merchant pays Subscriber)
+# Transaction reference is auto-generated
+# Merchant details come from configuration
+# Provider: BTC, ORANGE, or MASCOM
+POST {{baseUrl}}/withdraw
+Content-Type: application/json
+
+{
+  "provider": "BTC",
+  "cdsNumber": "CV00002GK",
+  "amount": 50.00,
+  "subscriberMsisdn": "73001762"
+}
+
+### 3. Check Status by Provider Reference
+# Provider: BTC, ORANGE, or MASCOM
+POST {{baseUrl}}/status
+Content-Type: application/json
+
+{
+  "provider": "BTC",
+  "transactionReference": "MP251209.155210620.000321",
+  "useOriginalReference": false
+}
+
+### 4. Check Status by Original Reference
+# Provider: BTC, ORANGE, or MASCOM
+POST {{baseUrl}}/status
+Content-Type: application/json
+
+{
+  "provider": "BTC",
+  "transactionReference": "DEP-20251209160530123-A1B2C3",
+  "useOriginalReference": true
+}

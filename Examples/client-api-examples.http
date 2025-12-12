@@ -1,0 +1,47 @@
+### Get Client Transactions (Basic)
+GET http://localhost:5000/api/clients/CV00002GK/transactions
+Content-Type: application/json
+
+### Get Client Transactions (With Pagination)
+GET http://localhost:5000/api/clients/CV00002GK/transactions?page=1&pageSize=10
+Content-Type: application/json
+
+### Get Client Transactions (With Date Filter)
+GET http://localhost:5000/api/clients/CV00002GK/transactions?startDate=2025-12-01&endDate=2025-12-31
+Content-Type: application/json
+
+### Get Client Transactions (With Transaction Type Filter)
+GET http://localhost:5000/api/clients/CV00002GK/transactions?transType=Account Deposit
+Content-Type: application/json
+
+### Get Client Transactions (All Filters)
+GET http://localhost:5000/api/clients/CV00002GK/transactions?page=1&pageSize=20&startDate=2025-12-01&transType=Account Deposit
+Content-Type: application/json
+
+### Get Client Balance and Portfolio Stats
+GET http://localhost:5000/api/clients/CV00002GK/balance
+Content-Type: application/json
+
+### Get All Payment Transactions (Basic)
+GET http://localhost:5000/api/transactions
+Content-Type: application/json
+
+### Get Payment Transactions (With Pagination)
+GET http://localhost:5000/api/transactions?page=1&pageSize=10
+Content-Type: application/json
+
+### Get Payment Transactions (Filter by CDS Number)
+GET http://localhost:5000/api/transactions?cdsNumber=CV00002GK
+Content-Type: application/json
+
+### Get Payment Transactions (Filter by Provider)
+GET http://localhost:5000/api/transactions?provider=BTC
+Content-Type: application/json
+
+### Get Payment Transactions (Filter by Status)
+GET http://localhost:5000/api/transactions?status=Success
+Content-Type: application/json
+
+### Get Payment Transactions (All Filters)
+GET http://localhost:5000/api/transactions?page=1&pageSize=20&cdsNumber=CV00002GK&provider=BTC&status=Success&startDate=2025-12-01
+Content-Type: application/json
