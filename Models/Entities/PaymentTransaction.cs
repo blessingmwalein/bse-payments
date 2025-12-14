@@ -8,6 +8,7 @@ public class PaymentTransaction
     public PaymentProvider Provider { get; set; }
     public TransactionType Type { get; set; }
     public TransactionStatus Status { get; set; }
+    public string StatusText { get; set; } = string.Empty;
     public string CdsNumber { get; set; } = string.Empty;
     public string OriginalTransactionReference { get; set; } = string.Empty;
     public string? ProviderTransactionReference { get; set; }

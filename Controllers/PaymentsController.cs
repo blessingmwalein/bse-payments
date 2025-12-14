@@ -59,6 +59,26 @@ public class PaymentsController : ControllerBase
     }
 
     /// <summary>
+    /// Finalize a pending withdrawal transaction (approve and process)
+    /// </summary>
+    /// <remarks>
+    /// Provider options: BTC, ORANGE, MASCOM
+    /// This endpoint processes a pending withdrawal by hitting the provider API
+    /// </remarks>
+    [HttpPost("withdraw/finalize")]
+    public async Task<IActionResult> FinalizeWithdrawal([FromBody] FinalizeWithdrawalRequest request)
+    {
+        if (!ProviderMapper.IsValidProvider(request.Provider))
+        {
+            return BadRequest(new { success = false, message = $"Invalid provider: {request.Provider}. Valid options: BTC, ORANGE, MASCOM" });
+        }
+
+        _logger.LogInformation("Finalizing withdrawal for {Provider}: {Reference}", request.Provider, request.OriginalTransactionReference);
+        var result = await _paymentService.FinalizeWithdrawalAsync(request.Provider, request.OriginalTransactionReference);
+        return result.Success ? Ok(result) : BadRequest(result);
+    }
+
+    /// <summary>
     /// Check transaction status
     /// </summary>
     /// <remarks>

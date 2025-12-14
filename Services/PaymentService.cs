@@ -52,6 +52,19 @@ public class PaymentService
         return await adapter.WithdrawAsync(request);
     }
 
+    public async Task<PaymentResponse> FinalizeWithdrawalAsync(string provider, string originalTransactionReference)
+    {
+        var providerEnum = ProviderMapper.MapToEnum(provider);
+        if (providerEnum == null)
+            return new PaymentResponse { Success = false, Message = $"Invalid provider: {provider}" };
+
+        var adapter = GetAdapter(providerEnum.Value);
+        if (adapter == null)
+            return new PaymentResponse { Success = false, Message = $"Provider {provider} not supported yet" };
+
+        return await adapter.FinalizeWithdrawalAsync(originalTransactionReference);
+    }
+
     public async Task<PaymentResponse> GetTransactionStatusAsync(TransactionStatusRequest request)
     {
         var providerEnum = ProviderMapper.MapToEnum(request.Provider);

@@ -47,6 +47,7 @@ public class BtcAdapter : IPaymentAdapter
             Provider = PaymentProvider.BTC,
             Type = TransactionType.Deposit,
             Status = TransactionStatus.Pending,
+            StatusText = "PENDING",
             CdsNumber = request.CdsNumber,
             OriginalTransactionReference = originalRef,
             Amount = request.Amount,
@@ -84,6 +85,7 @@ public class BtcAdapter : IPaymentAdapter
                 transaction.ProviderTransactionReference = result.GetProperty("transactionReference").GetString();
                 transaction.Description = result.GetProperty("descriptionText").GetString();
                 transaction.Status = TransactionStatus.Paused;
+                transaction.StatusText = "PAUSED";
 
                 await _repository.CreateTransactionAsync(transaction);
 
@@ -100,6 +102,7 @@ public class BtcAdapter : IPaymentAdapter
             else
             {
                 transaction.Status = TransactionStatus.Failed;
+                transaction.StatusText = "FAILED";
                 transaction.ErrorMessage = responseBody;
                 await _repository.CreateTransactionAsync(transaction);
 
@@ -116,6 +119,7 @@ public class BtcAdapter : IPaymentAdapter
         {
             _logger.LogError(ex, "Error processing deposit");
             transaction.Status = TransactionStatus.Failed;
+            transaction.StatusText = "FAILED";
             transaction.ErrorMessage = ex.Message;
             await _repository.CreateTransactionAsync(transaction);
 
@@ -129,32 +133,74 @@ public class BtcAdapter : IPaymentAdapter
         if (config == null)
             return new PaymentResponse { Success = false, Message = "BTC provider not configured" };
 
-        var token = await GetOrRefreshTokenAsync(config);
-        if (string.IsNullOrEmpty(token))
-            return new PaymentResponse { Success = false, Message = "Failed to obtain authentication token" };
-
         // Auto-generate transaction reference
         var originalRef = TransactionReferenceGenerator.Generate("WD");
 
+        // Just record the withdrawal request without hitting BTC API
         var transaction = new PaymentTransaction
         {
             Provider = PaymentProvider.BTC,
             Type = TransactionType.Withdraw,
             Status = TransactionStatus.Pending,
+            StatusText = "PENDING_APPROVAL",
             CdsNumber = request.CdsNumber,
             OriginalTransactionReference = originalRef,
             Amount = request.Amount,
             DebitPartyMsisdn = config.MerchantNumber, // Merchant pays
-            CreditPartyMsisdn = request.SubscriberMsisdn // Subscriber receives
+            CreditPartyMsisdn = request.SubscriberMsisdn, // Subscriber receives
+            Description = "Withdrawal request pending approval",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
+
+        try
+        {
+            await _repository.CreateTransactionAsync(transaction);
+
+            return new PaymentResponse
+            {
+                Success = true,
+                Message = "Withdrawal request created and pending approval",
+                TransactionReference = null, // No provider reference yet
+                OriginalTransactionReference = originalRef,
+                Status = TransactionStatus.Pending,
+                Amount = request.Amount
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating withdrawal request");
+            return new PaymentResponse { Success = false, Message = ex.Message, Status = TransactionStatus.Failed };
+        }
+    }
+
+    public async Task<PaymentResponse> FinalizeWithdrawalAsync(string originalTransactionReference)
+    {
+        var transaction = await _repository.GetTransactionByReferenceAsync(originalTransactionReference, isOriginalReference: true);
+        if (transaction == null)
+            return new PaymentResponse { Success = false, Message = "Transaction not found" };
+
+        if (transaction.Type != TransactionType.Withdraw)
+            return new PaymentResponse { Success = false, Message = "Transaction is not a withdrawal" };
+
+        if (transaction.Status != TransactionStatus.Pending)
+            return new PaymentResponse { Success = false, Message = $"Transaction cannot be finalized. Current status: {transaction.StatusText}" };
+
+        var config = await _repository.GetProviderConfigAsync(PaymentProvider.BTC);
+        if (config == null)
+            return new PaymentResponse { Success = false, Message = "BTC provider not configured" };
+
+        var token = await GetOrRefreshTokenAsync(config);
+        if (string.IsNullOrEmpty(token))
+            return new PaymentResponse { Success = false, Message = "Failed to obtain authentication token" };
 
         var payload = new
         {
-            originalTransactionReference = originalRef,
+            originalTransactionReference = transaction.OriginalTransactionReference,
             subType = "cash-in",
-            amount = request.Amount.ToString("F2"),
-            creditParty = new[] { new { key = "msisdn", value = request.SubscriberMsisdn } },
-            debitParty = new[] { new { key = "msisdn", value = config.MerchantNumber } },
+            amount = transaction.Amount.ToString("F2"),
+            creditParty = new[] { new { key = "msisdn", value = transaction.CreditPartyMsisdn } },
+            debitParty = new[] { new { key = "msisdn", value = transaction.DebitPartyMsisdn } },
             customData = new[] { new { key = "pin", value = config.MerchantPin } }
         };
 
@@ -179,29 +225,33 @@ public class BtcAdapter : IPaymentAdapter
                 transaction.ProviderTransactionReference = result.GetProperty("transactionReference").GetString();
                 transaction.Description = result.GetProperty("descriptionText").GetString();
                 transaction.Status = TransactionStatus.Success;
+                transaction.StatusText = "SUCCESS";
+                transaction.UpdatedAt = DateTime.UtcNow;
 
-                await _repository.CreateTransactionAsync(transaction);
+                await _repository.UpdateTransactionAsync(transaction);
 
                 return new PaymentResponse
                 {
                     Success = true,
-                    Message = transaction.Description ?? "Withdrawal successful",
+                    Message = transaction.Description ?? "Withdrawal finalized successfully",
                     TransactionReference = transaction.ProviderTransactionReference,
-                    OriginalTransactionReference = originalRef,
+                    OriginalTransactionReference = transaction.OriginalTransactionReference,
                     Status = TransactionStatus.Success,
-                    Amount = request.Amount
+                    Amount = transaction.Amount
                 };
             }
             else
             {
                 transaction.Status = TransactionStatus.Failed;
+                transaction.StatusText = "FAILED";
                 transaction.ErrorMessage = responseBody;
-                await _repository.CreateTransactionAsync(transaction);
+                transaction.UpdatedAt = DateTime.UtcNow;
+                await _repository.UpdateTransactionAsync(transaction);
 
                 return new PaymentResponse
                 {
                     Success = false,
-                    Message = "Withdrawal failed",
+                    Message = "Withdrawal finalization failed",
                     Status = TransactionStatus.Failed,
                     ErrorCode = response.StatusCode.ToString()
                 };
@@ -209,10 +259,12 @@ public class BtcAdapter : IPaymentAdapter
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing withdrawal");
+            _logger.LogError(ex, "Error finalizing withdrawal");
             transaction.Status = TransactionStatus.Failed;
+            transaction.StatusText = "FAILED";
             transaction.ErrorMessage = ex.Message;
-            await _repository.CreateTransactionAsync(transaction);
+            transaction.UpdatedAt = DateTime.UtcNow;
+            await _repository.UpdateTransactionAsync(transaction);
 
             return new PaymentResponse { Success = false, Message = ex.Message, Status = TransactionStatus.Failed };
         }
@@ -252,6 +304,8 @@ public class BtcAdapter : IPaymentAdapter
                     ? TransactionStatus.Success 
                     : TransactionStatus.Pending;
 
+                var statusText = status == TransactionStatus.Success ? "SUCCESS" : "PENDING";
+
                 // Update transaction status in database
                 var transaction = await _repository.GetTransactionByReferenceAsync(
                     request.TransactionReference, 
@@ -263,7 +317,9 @@ public class BtcAdapter : IPaymentAdapter
                         request.TransactionReference, transaction.Status, status);
                     
                     transaction.Status = status;
+                    transaction.StatusText = statusText;
                     transaction.Description = description;
+                    transaction.UpdatedAt = DateTime.UtcNow;
                     await _repository.UpdateTransactionAsync(transaction);
                 }
 
